@@ -15,10 +15,24 @@ from flask import Flask, render_template
 from io import BytesIO
 import vidi
 import io
+import matplotlib.pyplot as plt
+
+
 
 #define the file direcory
 features_directory = './training_data/'
-vidi_runtimeworkspace = "EndtoEndSelfDriving01.vrws"
+vidi_runtimeworkspace = "EndtoEndSelfDriving03.vrws"
+
+
+#image size after resize
+rows = 160
+cols = 320
+
+#proprocess: change to HSV space and resize
+def preprocess(img):
+    resized = cv2.resize((cv2.cvtColor(img, cv2.COLOR_RGB2HSV))[:,:,1],(cols,rows))
+    return resized
+
 
 sio = socketio.Server()
 app = Flask(__name__)
@@ -47,7 +61,7 @@ class SimplePIController:
         return self.Kp * self.error + self.Ki * self.integral
 
 controller = SimplePIController(0.2, 0.004)
-set_speed = 12
+set_speed = 5
 controller.set_desired(set_speed)
 
 @sio.on('telemetry')
@@ -66,17 +80,22 @@ def telemetry(sid, data):
 	imgString = data["image"]
 	image = Image.open(BytesIO(base64.b64decode(imgString)))
 	image.save("temp.PNG")
+
 	#image_array = np.asarray(image)
 	#transformed_image_array = image_array[None, :, :, :]
 
 	# resize the image
 	#transformed_image_array = (
-	#cv2.resize((cv2.cvtColor(transformed_image_array[0], cv2.COLOR_RGB2HSV))[:, :, 1], (32, 16))).reshape(1, 16, 32, 1)
+	#cv2.resize((cv2.cvtColor(img, cv2.COLOR_RGB2HSV))[:, :, 1], (32, 16)))
 
 	# This model currently assumes that the features of the model are just the images. Feel free to change this.
 	##steering_angle = 1.3 * float(model.predict(transformed_image_array, batch_size=1))
 	
-	img = control.load_image("temp.PNG")
+	image = plt.imread("temp.PNG")
+	image = preprocess(image)
+	img_vidi = plt.imsave("temp_resized.PNG", image)
+	
+	img = control.load_image("temp_resized.PNG")
 	sample = control.process(img, ws_name = vidi_runtimeworkspace)
 	img = control.free_image(img)
 	analyze = sample.markings['Classify']
